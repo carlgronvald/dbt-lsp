@@ -1,0 +1,148 @@
+// Define whitespace and comment rules
+WHITESPACE = _{ " " | "\t" | "\n" | "\r" }
+COMMENT    = _{ ("--" | "//") ~ (!"\n" ~ ANY)* }
+// Define tokens
+SELECT     = _{ ^"SELECT" }
+FROM       = _{ ^"FROM" }
+WHERE      = _{ ^"WHERE" }
+AND        = _{ ^"AND" }
+OR         = _{ ^"OR" }
+NOT        = _{ ^"NOT" }
+WITH       = _{ ^"WITH" }
+LPAREN     = _{ "(" }
+RPAREN     = _{ ")" }
+COMMA      = _{ "," }
+identifier = @{ ('a'..'z' | 'A'..'Z' | "_") ~ ('a'..'z' | 'A'..'Z' | '0'..'9' | "_")* }
+STRING     =  { "'" ~ (!"'" ~ ANY)* ~ "'" }
+NUMBER     = @{ ('0'..'9')+ }
+AS         = _{ ^"AS" }
+STAR 	   = _{ "*" }
+MIN 	   =  { ^"MIN" }
+MAX 	   =  { ^"MAX" }
+COUNT	   =  { ^"COUNT" }
+AVG	       =  { ^"AVG" }
+SUM	       =  { ^"SUM" }
+GROUP 	   = _{ ^"GROUP" }
+BY		   = _{ ^"BY" }
+LEFT	   = _{ ^"LEFT" }
+RIGHT      = _{ ^"RIGHT" }
+OUTER      = _{ ^"OUTER" }
+INNER      = _{ ^"INNER" }
+ON		   = _{ ^"ON" }
+JOIN       = _{ ^"JOIN" }
+WHEN	   = _{ ^"WHEN" }
+THEN	   = _{ ^"THEN" }
+ELSE	   = _{ ^"ELSE" }
+CASE	   = _{ ^"CASE" }
+END 	   = _{ ^"END" }
+HAVING     = _{ ^"HAVING" }
+DESC       =  { ^"DESC" }
+ASC        =  { ^"ASC" }
+ORDER      = _{ ^"ORDER" }
+ZEROIFNULL =  { ^"ZEROIFNULL" }
+IN         = _{ ^"IN" }
+IS         = _{ ^"IS" }
+NULL       =  { ^"NULL" }
+UPPER      =  { ^"UPPER" } 
+YEAR       =  { ^"YEAR" }
+MONTH      =  { ^"MONTH" }
+DAY        =  { ^"DAY" }
+TO_DATE    =  { ^"TO_DATE" }
+RTRIM      =  { ^"RTRIM" }
+LTRIM      =  { ^"LTRIM" }
+TO_TIMESTAMP_NTZ = { ^"TO_TIMESTAMP_NTZ" }
+GET        = { ^"GET" }
+DATEADD    = { ^"DATEADD" }
+TO_NUMERIC = { ^"TO_NUMERIC" }
+UNION      = { ^"UNION" }
+ALL        = { ^"ALL" }
+LIKE       = { ^"LIKE" }
+ILIKE      = { ^"ILIKE" }
+CURRENT_DATE = { ^"CURRENT_DATE" }
+join_type  =  { LEFT | RIGHT | OUTER | INNER }
+qualified_ident = { (identifier ~ ".")? ~ identifier }
+alias 	   =  { AS ~ identifier }
+
+// Query
+query               = {	with_clause? ~ set_operation}
+inner_query 	    = {	select_statement
+	~ from_clause?
+    ~ join_clause*
+    ~ where_clause?
+    ~ group_by_clause?
+    ~ order_by_clause? }
+    
+with_clause         = { WITH ~ cte_list }
+cte_list            = { cte ~ (COMMA ~ cte)* }
+cte                 = { cte_name ~ AS ~ LPAREN ~ set_operation ~ RPAREN }
+cte_name            = { identifier }
+select_statement    = { SELECT ~ select_list }
+select_list         = { expr_w_alias ~ (COMMA ~ expr_w_alias)* }
+expr_w_alias		= { expression ~ alias? }
+from_clause         = { FROM ~ identifier ~ alias? }
+where_clause        = { WHERE ~ predicate }
+group_by_clause		= { GROUP ~ BY ~ q_identifier_list ~ having_clause?}
+having_clause       = { HAVING ~ predicate }
+order_by_clause     = { ORDER ~ BY ~ order_list }
+order_list          = { order_item ~ (COMMA ~ order_item)* }
+order_item          = { expression ~ (ASC | DESC)? }
+join_clause 		= { join_type? ~ JOIN ~ identifier 
+						~ ON ~ predicate }
+
+// Sets
+set_operator = { UNION ~ ALL? }
+set_operation = { inner_query ~ (set_operator ~ set_operation)?}
+
+// Types
+value = { STRING | NUMBER }
+datepart = { YEAR | MONTH | DAY }
+
+// Expressions
+expression = { 
+    | inner_expression ~ "^" ~ expression
+    | inner_expression ~ "*" ~ expression
+    | inner_expression ~ "/" ~ expression
+    | inner_expression ~ "%" ~ expression
+    | inner_expression ~ "+" ~ expression
+    | inner_expression ~ "-" ~ expression
+    | inner_expression
+}
+
+function_0ary_identifier = { CURRENT_DATE }
+function_0ary = { function_0ary_identifier ~ LPAREN ~ RPAREN}
+function_identifier = {ZEROIFNULL | UPPER | YEAR | MONTH | DAY | TO_DATE | RTRIM | LTRIM | TO_TIMESTAMP_NTZ | GET | TO_NUMERIC } 
+function = { function_identifier ~ LPAREN ~ expression_list ~ RPAREN}
+function_aggregate_identifier = {MIN | MAX | COUNT | AVG | SUM}
+function_aggregate = { function_aggregate_identifier ~ LPAREN ~ qualified_ident ~ RPAREN}
+
+inner_expression = {
+	  STAR
+    | CASE ~ when_clause+ ~ else_clause? ~ END
+    | function_aggregate
+    | function
+    | function_0ary
+    | DATEADD ~ LPAREN ~ datepart ~ COMMA ~ expression ~ COMMA ~ expression ~ RPAREN
+    | qualified_ident
+    | value
+}
+
+expression_list = { expression ~ (COMMA ~ expression)* }
+    
+when_clause = { WHEN ~ predicate ~ THEN ~ expression }
+
+else_clause = { ELSE ~ expression }
+
+
+// Predicates
+predicate           = { inner_predicate ~ (and_predicate | or_predicate)? }
+and_predicate       = { AND ~ predicate }
+or_predicate        = { OR ~ predicate }
+inner_predicate     = { not_inner_predicate | comparison | (LPAREN ~ predicate ~ RPAREN) | in_predicate | is_predicate | like_predicate | ilike_predicate }
+not_inner_predicate = { NOT ~ predicate }
+in_predicate        = { qualified_ident ~ IN ~ LPAREN ~ (expression_list) ~ RPAREN }
+is_predicate        = { qualified_ident ~ IS ~ (NULL | NOT ~ NULL)}
+comparison          = { expression ~ comparison_operator ~ expression }
+like_predicate      = { qualified_ident ~ LIKE ~ STRING }
+ilike_predicate     = { qualified_ident ~ ILIKE ~ STRING }
+q_identifier_list   = { qualified_ident ~ (COMMA ~ qualified_ident)* }
+comparison_operator = { "=" | "<>" | "<=" | ">=" | "<" | ">" }

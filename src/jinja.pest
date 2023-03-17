@@ -1,0 +1,28 @@
+// Define whitespace and comment rules
+WHITESPACE = _{ " " | "\t" | "\n" | "\r" }
+COMMENT    = _{ "--" ~ (!"\n" ~ ANY)* }
+// Define tokens
+
+L_PAREN         = _{ "(" }
+R_PAREN         = _{ ")"}
+STR_DELIM       = _{ "'" }
+L_CURLY_BRACKET = _{ "{" }
+R_CURLY_BRACKET = _{ "}" }
+REF             = _{ "ref" }
+SOURCE          = _{ "source" }
+COMMA           = _{ ","}
+string          =  { STR_DELIM ~ (!STR_DELIM ~ ANY)* ~ STR_DELIM }
+
+// Define the grammar
+expr_start    = { L_CURLY_BRACKET ~ L_CURLY_BRACKET}
+expr_end      = { R_CURLY_BRACKET ~ R_CURLY_BRACKET}
+unknown       = { (!expr_end ~ ANY)* }
+expr_template = { expr_start ~ (expr | unknown) ~ expr_end}
+
+expr        = { reference | source }
+reference   = { REF ~ L_PAREN ~ string ~ R_PAREN}
+source      = { SOURCE ~ L_PAREN ~ string ~ COMMA ~ string ~ R_PAREN}
+not_jinja   = { (!(expr_start | EOI) ~ ANY)* }
+
+// Define the output
+output = _{ not_jinja ~ (expr_template ~ not_jinja)* }
