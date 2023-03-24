@@ -1,2 +1,10 @@
 /target
 /test_sql
+dbt-analyzer/node_modules
+dbt-analyzer/.vscode
+dbt-analyzer/out
+dbt-analyzer/.vscodeignore
+.vscode
+
+python310.dll
+python310.lib

@@ -9,3 +9,9 @@ edition = "2021"
 pest = "*"
 pest_derive = "*"
 walkdir = "*"
+pyo3 = {version = "*", features = ["auto-initialize"]}
+serde_json = "*"
+tokio = { version = "*", features = ["full"] }
+tower-lsp = "*"
+serde = { version = "*", features = ["derive"] }
+ropey = "*"

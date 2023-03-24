@@ -1,6 +1,6 @@
 // Define whitespace and comment rules
 WHITESPACE = _{ " " | "\t" | "\n" | "\r" }
-COMMENT    = _{ ("--" | "//") ~ (!"\n" ~ ANY)* }
+COMMENT    = _{ (("--" | "//") ~ (!"\n" ~ ANY)*) | ( "{#-" ~ (!"#}" ~ ANY)* ~ "#}") }
 // Define tokens
 SELECT     = _{ ^"SELECT" }
 FROM       = _{ ^"FROM" }
@@ -12,7 +12,7 @@ WITH       = _{ ^"WITH" }
 LPAREN     = _{ "(" }
 RPAREN     = _{ ")" }
 COMMA      = _{ "," }
-identifier = @{ ('a'..'z' | 'A'..'Z' | "_") ~ ('a'..'z' | 'A'..'Z' | '0'..'9' | "_")* }
+identifier = @{ (('a'..'z' | 'A'..'Z' | "_") ~ ('a'..'z' | 'A'..'Z' | '0'..'9' | "_")*) | ("\"" ~ (!"\"" ~ ANY)+ ~ "\"" ) }
 STRING     =  { "'" ~ (!"'" ~ ANY)* ~ "'" }
 NUMBER     = @{ ('0'..'9')+ }
 AS         = _{ ^"AS" }
@@ -78,7 +78,8 @@ cte                 = { cte_name ~ AS ~ LPAREN ~ set_operation ~ RPAREN }
 cte_name            = { identifier }
 select_statement    = { SELECT ~ select_list }
 select_list         = { expr_w_alias ~ (COMMA ~ expr_w_alias)* }
-expr_w_alias		= { expression ~ alias? }
+expr_w_alias		= { (expression ~ alias?) | star_select }
+star_select         = { (identifier ~ ".")? ~ STAR}
 from_clause         = { FROM ~ identifier ~ alias? }
 where_clause        = { WHERE ~ predicate }
 group_by_clause		= { GROUP ~ BY ~ q_identifier_list ~ having_clause?}
@@ -116,8 +117,7 @@ function_aggregate_identifier = {MIN | MAX | COUNT | AVG | SUM}
 function_aggregate = { function_aggregate_identifier ~ LPAREN ~ qualified_ident ~ RPAREN}
 
 inner_expression = {
-	  STAR
-    | CASE ~ when_clause+ ~ else_clause? ~ END
+	  CASE ~ when_clause+ ~ else_clause? ~ END
     | function_aggregate
     | function
     | function_0ary

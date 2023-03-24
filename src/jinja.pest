@@ -1,6 +1,6 @@
 // Define whitespace and comment rules
 WHITESPACE = _{ " " | "\t" | "\n" | "\r" }
-COMMENT    = _{ "--" ~ (!"\n" ~ ANY)* }
+COMMENT    = _{ ("--" ~ (!"\n" ~ ANY)*)}
 // Define tokens
 
 L_PAREN         = _{ "(" }
@@ -8,21 +8,57 @@ R_PAREN         = _{ ")"}
 STR_DELIM       = _{ "'" }
 L_CURLY_BRACKET = _{ "{" }
 R_CURLY_BRACKET = _{ "}" }
+L_BRACKET       = _{ "[" }
+R_BRACKET       = _{ "]" }
 REF             = _{ "ref" }
 SOURCE          = _{ "source" }
 COMMA           = _{ ","}
+PERCENTAGE      = _{ "%" }
+CONFIG          = _{ "config" }
+FOR             = _{ "for"}
+IN              = _{ "in"}  
+ENDFOR          = _{ "endfor"}
+PIPE            = _{ "|"}
+MINUS           = _{ "-"}
+SET             = _{ "set"}
+EQUALS          = _{ "="}
+TRUE            = _{ "true"}
+FALSE           = _{ "false"}
 string          =  { STR_DELIM ~ (!STR_DELIM ~ ANY)* ~ STR_DELIM }
+identifier      = @{ ('a'..'z' | 'A'..'Z' | "_") ~ ('a'..'z' | 'A'..'Z' | '0'..'9' | "_")* }
 
-// Define the grammar
+// Jinja and SQL interaction
 expr_start    = { L_CURLY_BRACKET ~ L_CURLY_BRACKET}
 expr_end      = { R_CURLY_BRACKET ~ R_CURLY_BRACKET}
-unknown       = { (!expr_end ~ ANY)* }
-expr_template = { expr_start ~ (expr | unknown) ~ expr_end}
+expr_unknown  = { (!expr_end ~ ANY)* }
+expr_template = { expr_start ~ (expression | expr_unknown) ~ expr_end}
 
-expr        = { reference | source }
-reference   = { REF ~ L_PAREN ~ string ~ R_PAREN}
-source      = { SOURCE ~ L_PAREN ~ string ~ COMMA ~ string ~ R_PAREN}
 not_jinja   = { (!(expr_start | EOI) ~ ANY)* }
 
+//macro_start    = { L_CURLY_BRACKET ~ PERCENTAGE}
+//macro_end      = { MINUS? ~ PERCENTAGE ~ R_CURLY_BRACKET} //TODO: I DON'T UNDERSTAND THE MINUS
+//macro_unknown   = { (!macro_end ~ ANY)* }
+//macro_template = { macro_start ~ (macro | macro_unknown) ~ macro_end}
+//
+//// Macros
+//macro           = { for }
+////config         = { CON ~ L_PAREN ~ string ~ R_PAREN}
+//for             = { FOR ~ identifier_list ~ IN ~ expression}
+//identifier_list = { identifier ~ (COMMA ~ identifier)*}
+//endfor          = { ENDFOR }
+
+// Expressions
+expression  = { reference | source }//| set | literal | (identifier ~ filter?)  }
+expression_list = { expression ~ (COMMA ~ expression)* }
+filter      = { PIPE ~ filter_call}
+filter_call = { identifier ~ (L_PAREN ~ expression_list? ~ R_PAREN)? }
+reference   = { REF ~ L_PAREN ~ string ~ R_PAREN}
+source      = { SOURCE ~ L_PAREN ~ string ~ COMMA ~ string ~ R_PAREN}
+set         = { SET ~ identifier ~ EQUALS ~ expression}
+
+// Literals
+literal = { string | NUMBER | TRUE | FALSE | array}
+array   = { L_BRACKET ~ expression_list? ~ R_BRACKET}
+
 // Define the output
-output = _{ not_jinja ~ (expr_template ~ not_jinja)* }
+output = _{ not_jinja? ~ (( expr_template ) ~ not_jinja)* ~ EOI }
