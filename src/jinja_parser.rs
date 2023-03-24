@@ -45,9 +45,6 @@ pub struct JinjaParser<'i> {
 }
 
 impl<'i> JinjaParser<'i> {
-    pub fn unify(&self) -> &str {
-        &self.out_string
-    }
 
     fn set_snippets(&mut self, pre_snippets: Vec<(pest::Span<'i>, (usize, usize), SectionType)>) {
         let mut snippets = vec![];
@@ -194,6 +191,21 @@ pub fn parse_pair(pair: Pair<Rule>) -> Option<String> {
                 .unwrap()
                 .as_str();
             Some(inner_str[1..inner_str.len() - 1].to_string())
+        }
+        Rule::source => {
+            let mut inner_strings =  pair
+            .into_inner()
+            .filter(|pair| pair.as_rule() == Rule::string);
+
+            let first_inner_str =inner_strings
+                .next()
+                .unwrap()
+                .as_str();
+            let second_inner_str = inner_strings
+                .next()
+                .unwrap()
+                .as_str();
+            Some(format!("{}_{}", &first_inner_str[1..first_inner_str.len() - 1], &second_inner_str[1..second_inner_str.len() - 1]))
         }
         Rule::not_jinja => {
             Some(pair.as_str().to_string())

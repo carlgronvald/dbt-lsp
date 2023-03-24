@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use tower_lsp::lsp_types::{
     Diagnostic, DidChangeTextDocumentParams, DidOpenTextDocumentParams, InitializeParams,
     InitializeResult, MessageType, Position, ServerCapabilities, TextDocumentItem, TextDocumentSyncKind,
@@ -5,10 +7,11 @@ use tower_lsp::lsp_types::{
 use tower_lsp::{jsonrpc::Result, Client, LanguageServer, LspService, Server};
 
 use crate::jinja_parser::JinjaParser;
-use crate::parser;
+use crate::parser::{self, Model};
 
 struct Backend {
     client: Client,
+    models : HashMap<String, Model> 
 }
 
 impl Backend {
@@ -60,7 +63,7 @@ impl Backend {
             Err(e) => {
                 let range = match e.position() {
                     parser::ErrorLoc::Position(pos) => {
-                        let line = pos.line_col().0 as u32;
+                        let line = pos.line_col().0 as u32-1;
                         let column = pos.line_col().1 as u32;
                         let start = Position {
                             line,
@@ -74,11 +77,11 @@ impl Backend {
                     }
                     parser::ErrorLoc::Span(span) => {
                         let start = Position {
-                            line: span.start_pos().line_col().0 as u32,
+                            line: span.start_pos().line_col().0 as u32-1,
                             character: span.start_pos().line_col().1 as u32,
                         };
                         let end = Position {
-                            line: span.end_pos().line_col().0 as u32,
+                            line: span.end_pos().line_col().0 as u32-1,
                             character: span.end_pos().line_col().1 as u32,
                         };
                         tower_lsp::lsp_types::Range { start, end }
@@ -151,7 +154,7 @@ impl LanguageServer for BackendExecutor {
 
 pub async fn run() {
     let (service, socket) = LspService::new(|client| BackendExecutor {
-        backend: Backend { client },
+        backend: Backend { client, models : HashMap::new() },
     });
 
     let stdin = tokio::io::stdin();

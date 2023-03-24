@@ -1,0 +1,22 @@
+WHITESPACE = _{ " " | "\t" | "\n" | "\r" }
+
+LPAREN     = _{ "(" }
+RPAREN     = _{ ")" }
+LBRACKET   = _{ "[" }
+RBRACKET   = _{ "]" } 
+LEFTANGLE  = _{ "<" }
+RIGHTANGLE = _{ ">" }
+COMMA      = _{ "," }
+PARTITION  = _{ "PARTITION" }
+BY         = _{ "BY" }
+DISTINCT   = _{ "DISTINCT" }
+
+identifier          = @{ ('a'..'z' | 'A'..'Z' | "_") ~ ('a'..'z' | 'A'..'Z' | '0'..'9' | "_")* }
+function_identifier = @{ ('A'..'Z' | "_") ~ ('A'..'Z' | '0'..'9' | "_")* }
+
+expr = { LEFTANGLE ~ identifier ~ RIGHTANGLE}
+expr_list = { expr ~ (COMMA ~ expr)* }
+
+optional_distinct   = { (LBRACKET ~ DISTINCT ~ RBRACKET)? }
+function_arg_list   = { expr_list ~ (LBRACKET ~ function_arg_list ~ RBRACKET)? }
+function_definition = {function_identifier ~ LPAREN ~ optional_distinct? ~ function_arg_list ~ RPAREN }

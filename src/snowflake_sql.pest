@@ -13,6 +13,7 @@ LPAREN     = _{ "(" }
 RPAREN     = _{ ")" }
 COMMA      = _{ "," }
 identifier = @{ (('a'..'z' | 'A'..'Z' | "_") ~ ('a'..'z' | 'A'..'Z' | '0'..'9' | "_")*) | ("\"" ~ (!"\"" ~ ANY)+ ~ "\"" ) }
+function_identifier = @{ ('a'..'z' | 'A'..'Z' | "_") ~ ('a'..'z' | 'A'..'Z' | '0'..'9' | "_")* }
 STRING     =  { "'" ~ (!"'" ~ ANY)* ~ "'" }
 NUMBER     = @{ ('0'..'9')+ }
 AS         = _{ ^"AS" }
@@ -59,6 +60,7 @@ ALL        = { ^"ALL" }
 LIKE       = { ^"LIKE" }
 ILIKE      = { ^"ILIKE" }
 CURRENT_DATE = { ^"CURRENT_DATE" }
+IFNULL     = { ^"IFNULL"}
 join_type  =  { LEFT | RIGHT | OUTER | INNER }
 qualified_ident = { (identifier ~ ".")? ~ identifier }
 alias 	   =  { AS ~ identifier }
@@ -109,18 +111,13 @@ expression = {
     | inner_expression
 }
 
-function_0ary_identifier = { CURRENT_DATE }
-function_0ary = { function_0ary_identifier ~ LPAREN ~ RPAREN}
-function_identifier = {ZEROIFNULL | UPPER | YEAR | MONTH | DAY | TO_DATE | RTRIM | LTRIM | TO_TIMESTAMP_NTZ | GET | TO_NUMERIC } 
 function = { function_identifier ~ LPAREN ~ expression_list ~ RPAREN}
-function_aggregate_identifier = {MIN | MAX | COUNT | AVG | SUM}
-function_aggregate = { function_aggregate_identifier ~ LPAREN ~ qualified_ident ~ RPAREN}
+function_aggregate = { function_identifier ~ LPAREN ~ qualified_ident ~ RPAREN}
 
 inner_expression = {
 	  CASE ~ when_clause+ ~ else_clause? ~ END
     | function_aggregate
     | function
-    | function_0ary
     | DATEADD ~ LPAREN ~ datepart ~ COMMA ~ expression ~ COMMA ~ expression ~ RPAREN
     | qualified_ident
     | value
@@ -145,4 +142,4 @@ comparison          = { expression ~ comparison_operator ~ expression }
 like_predicate      = { qualified_ident ~ LIKE ~ STRING }
 ilike_predicate     = { qualified_ident ~ ILIKE ~ STRING }
 q_identifier_list   = { qualified_ident ~ (COMMA ~ qualified_ident)* }
-comparison_operator = { "=" | "<>" | "<=" | ">=" | "<" | ">" }
+comparison_operator = { "=" | "<>" | "<=" | ">=" | "<" | ">" | "!="}

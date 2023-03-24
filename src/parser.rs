@@ -46,7 +46,7 @@ struct ColumnSet {
     columns: Vec<Column>,
 }
 
-struct Model {
+pub struct Model {
     name: String,
     ctes: Option<Vec<Cte>>,
 }
@@ -284,7 +284,7 @@ pub fn parse_sql<'i>(jinja_parse: &'i JinjaParser) -> Result<(), SqlParseError<'
 mod tests {}
 #[test]
 fn test_sql_parsing() {
-    let walk_dir = WalkDir::new("./test_sql/jaffa_shop/models");
+    let walk_dir = WalkDir::new("./jaffle_shop/models");
 
     let entry_iterator = walk_dir.into_iter().flat_map(|x| x.ok()).flat_map(|x| {
         let Some(file_name) = x.path().to_str() else {return None};

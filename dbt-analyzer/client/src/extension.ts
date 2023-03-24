@@ -13,7 +13,7 @@ let client : LanguageClient;
 // Your extension is activated the very first time the command is executed
 export async function activate(context: vscode.ExtensionContext) {
 	const traceOutputChannel = vscode.window.createOutputChannel('DBT Language Server Trace');
-	const command = "F:\\Git\\vscode_extension\\dbt-lsp\\target\\debug\\dbt-lsp.exe";
+	const command = "C:\\Users\\CarlFrederikGrønvald\\OneDrive - Intellishore\\Documents\\Mine Ting\\vscode extensions\\dbt-lsp-main\\dbt-lsp-main\\target\\debug\\dbt-lsp.exe";
 	const run : Executable = {
 		command,
 		options : {
