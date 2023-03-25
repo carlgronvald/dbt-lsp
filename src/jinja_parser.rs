@@ -3,19 +3,7 @@ use pest::{
     Parser,
 };
 use pest_derive::Parser;
-use pyo3::{PyResult, Python};
 
-pub fn render_jinja_pyo3(file_contents: &str) -> PyResult<String> {
-    Python::with_gil(|py| {
-        let jinja2 = py.import("jinja2")?;
-        let env = jinja2.call_method("Environment", (), None)?;
-
-        let unrendered = env.call_method("from_string", (file_contents,), None)?;
-        let output: String = unrendered.call_method("render", (), None)?.extract()?;
-
-        Ok(output)
-    })
-}
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 enum SectionType {

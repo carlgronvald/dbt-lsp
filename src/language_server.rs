@@ -1,10 +1,13 @@
 use std::collections::HashMap;
 
+use serde::Deserialize;
 use tower_lsp::lsp_types::{
     Diagnostic, DidChangeTextDocumentParams, DidOpenTextDocumentParams, InitializeParams,
     InitializeResult, MessageType, Position, ServerCapabilities, TextDocumentItem, TextDocumentSyncKind,
 };
-use tower_lsp::{jsonrpc::Result, Client, LanguageServer, LspService, Server};
+use tower_lsp::{Client, LanguageServer, LspService, Server, jsonrpc};
+use async_process::{Command};
+use async_std::io::{self, prelude::*};
 
 use crate::jinja_parser::JinjaParser;
 use crate::parser::{self, Model};
@@ -14,8 +17,172 @@ struct Backend {
     models : HashMap<String, Model> 
 }
 
+#[derive(Debug)]
+enum LintError {
+    Io(io::Error),
+    Json(serde_json::Error),
+    CannotOpenStdin,
+    CannotOpenStdout
+}
+
+impl From<io::Error> for LintError {
+    fn from(err: io::Error) -> Self {
+        LintError::Io(err)
+    }
+}
+
+impl From<serde_json::Error> for LintError {
+    fn from(err: serde_json::Error) -> Self {
+        LintError::Json(err)
+    }
+}
+
+#[derive(Deserialize, Debug)]
+struct SqlfluffLint {
+    line_no : usize,
+    line_pos : usize,
+    code : String,
+    description : String,
+    name : String
+}
+
+#[derive(Deserialize)]
+struct SqlfluffLints {
+    filepath : String,
+    #[serde(rename = "violations")]
+    lints: Vec<SqlfluffLint>
+}
+
+async fn lint(text : &str) -> Result<SqlfluffLints, LintError> {
+    // Spawn the process
+    let mut child = Command::new("sqlfluff")
+        .arg("lint")
+        .arg("-")
+        .arg("--dialect")
+        .arg("snowflake")
+        .arg("--format")
+        .arg("json")
+        .stdin(async_process::Stdio::piped())
+        .stdout(async_process::Stdio::piped())
+        .spawn()?;
+
+    // Write to the child's stdin
+    
+    if let Some(mut stdin) = child.stdin.take() {
+        stdin.write_all(text.as_bytes()).await?;
+        stdin.flush().await?;    
+    } else {
+        return Err(LintError::CannotOpenStdin)
+    };
+    
+
+    // Read from the child's stdout
+    let output = if let Some(mut stdout) = child.stdout.take() {
+        let mut output = String::new();
+        stdout.read_to_string(&mut output).await?;
+//        println!("Output: {}", &output[1..output.len()-3]);
+        output
+    } else {
+        return Err(LintError::CannotOpenStdout)
+    };
+    
+    let lints : SqlfluffLints = serde_json::from_str(&output[1..output.len()-3])?;
+
+//    for lint in lints.lints.iter() {
+//        println!("Lint: {:?}", lint);
+//    }
+//    println!("{}", lints.lints.len());
+
+    // Wait for the child process to exit
+    let status = child.status().await?;
+
+    Ok(lints)
+}
+
+#[derive(Debug)]
+enum LintError {
+    Io(io::Error),
+    Json(serde_json::Error),
+    CannotOpenStdin,
+    CannotOpenStdout
+}
+
+impl From<io::Error> for LintError {
+    fn from(err: io::Error) -> Self {
+        LintError::Io(err)
+    }
+}
+
+impl From<serde_json::Error> for LintError {
+    fn from(err: serde_json::Error) -> Self {
+        LintError::Json(err)
+    }
+}
+
+#[derive(Deserialize, Debug)]
+struct SqlfluffLint {
+    line_no : usize,
+    line_pos : usize,
+    code : String,
+    description : String,
+    name : String
+}
+
+#[derive(Deserialize)]
+struct SqlfluffLints {
+    filepath : String,
+    #[serde(rename = "violations")]
+    lints: Vec<SqlfluffLint>
+}
+
+async fn lint(text : &str) -> Result<SqlfluffLints, LintError> {
+    // Spawn the process
+    let mut child = Command::new("sqlfluff")
+        .arg("lint")
+        .arg("-")
+        .arg("--dialect")
+        .arg("snowflake")
+        .arg("--format")
+        .arg("json")
+        .stdin(async_process::Stdio::piped())
+        .stdout(async_process::Stdio::piped())
+        .spawn()?;
+
+    // Write to the child's stdin
+    
+    if let Some(mut stdin) = child.stdin.take() {
+        stdin.write_all(text.as_bytes()).await?;
+        stdin.flush().await?;    
+    } else {
+        return Err(LintError::CannotOpenStdin)
+    };
+    
+
+    // Read from the child's stdout
+    let output = if let Some(mut stdout) = child.stdout.take() {
+        let mut output = String::new();
+        stdout.read_to_string(&mut output).await?;
+//        println!("Output: {}", &output[1..output.len()-3]);
+        output
+    } else {
+        return Err(LintError::CannotOpenStdout)
+    };
+    
+    let lints : SqlfluffLints = serde_json::from_str(&output[1..output.len()-3])?;
+
+//    for lint in lints.lints.iter() {
+//        println!("Lint: {:?}", lint);
+//    }
+//    println!("{}", lints.lints.len());
+
+    // Wait for the child process to exit
+    let status = child.status().await?;
+
+    Ok(lints)
+}
+
 impl Backend {
-    async fn initialize(&self, params: InitializeParams) -> Result<InitializeResult> {
+    async fn initialize(&self, params: InitializeParams) -> jsonrpc::Result<InitializeResult> {
         self.client
             .log_message(MessageType::INFO, "Initialized!")
             .await;
@@ -32,11 +199,11 @@ impl Backend {
         Ok(result)
     }
 
-    async fn shutdown(&self) -> Result<()> {
+    async fn shutdown(&self) -> jsonrpc::Result<()> {
         Ok(())
     }
 
-    fn find_diagnostics(src: &str) -> Vec<Diagnostic> {
+    async fn find_diagnostics(src: &str) -> Vec<Diagnostic> {
         let mut jinja_parse = JinjaParser::new(src);
         match jinja_parse.render_jinja() {
             Ok(_) => {}
@@ -59,7 +226,35 @@ impl Backend {
         }
 
         match parser::parse_sql(&jinja_parse) {
-            Ok(_) => return vec![],
+            Ok(_) => {
+                match lint(jinja_parse.output()).await {
+                    Ok(lints) => {
+                        let mut diagnostics = vec![];
+                        for lint in lints.lints.iter() {
+                            
+
+                            let diagnostic = Diagnostic::new_simple(
+                                tower_lsp::lsp_types::Range {
+                                    start: Position {
+                                        line: lint.line_no as u32 - 1,
+                                        character: lint.line_pos as u32 - 1,
+                                    },
+                                    end: Position {
+                                        line: lint.line_no as u32 - 1,
+                                        character: lint.line_pos as u32 - 1,
+                                    },
+                                },
+                                lint.description.clone(),
+                            );
+                            diagnostics.push(diagnostic);
+                        }
+                        return diagnostics;
+                    }
+                    Err(_) => {
+                        return vec![]
+                    } 
+                }
+            },
             Err(e) => {
                 let range = match e.position() {
                     parser::ErrorLoc::Position(pos) => {
@@ -108,7 +303,7 @@ impl Backend {
         self.client.log_message(MessageType::INFO, "OnChange Called!").await;
         let parsing_base = params.text.clone();
         
-        let diagnostics = Backend::find_diagnostics(&parsing_base);
+        let diagnostics = Backend::find_diagnostics(&parsing_base).await;
         self.client
             .publish_diagnostics(params.uri, diagnostics, Some(params.version))
             .await;
@@ -121,11 +316,11 @@ struct BackendExecutor {
 
 #[tower_lsp::async_trait]
 impl LanguageServer for BackendExecutor {
-    async fn initialize(&self, params: InitializeParams) -> Result<InitializeResult> {
+    async fn initialize(&self, params: InitializeParams) -> jsonrpc::Result<InitializeResult> {
         self.backend.initialize(params).await
     }
 
-    async fn shutdown(&self) -> Result<()> {
+    async fn shutdown(&self) -> jsonrpc::Result<()> {
         self.backend.shutdown().await
     }
 
@@ -169,8 +364,8 @@ mod tests {
     use super::*;
 
 
-    #[test]
-    fn test_diagnostics() {
+    #[tokio::test]
+    async fn test_diagnostics() {
         let src = r#"with source as (
 
             {#-
@@ -194,7 +389,10 @@ mod tests {
         
         select * from renamed
         "#;
-        let diagnostics = Backend::find_diagnostics(src);
+        let lints = lint(src).await;
+        lints.unwrap();
+
+        let diagnostics = Backend::find_diagnostics(src).await;
         assert_eq!(diagnostics.len(), 0);
     }
 }
